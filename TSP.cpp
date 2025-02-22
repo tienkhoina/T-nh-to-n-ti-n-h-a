@@ -1,11 +1,18 @@
 #include <bits/stdc++.h>
 using namespace std;
 
+// Khai báo các biến khởi tạo giá trị ngẫu nhiên toàn cục
+random_device rd;
+mt19937 gen(rd());
+
 // Hàm tạo số ngẫu nhiên trong khoảng [a, b]
 int getRandomNumber(int a, int b) {
-    random_device rd;
-    mt19937 gen(rd());
     uniform_int_distribution<int> dist(a, b);
+    return dist(gen);
+}
+
+double getRandomDouble(double a, double b) {
+    uniform_real_distribution<double> dist(a, b);
     return dist(gen);
 }
 
@@ -15,6 +22,7 @@ public:
     vector<int> Permution;
     vector<vector<int>>& Expense;
     int cost;
+    double fitness;
 
     // Constructor
     Way(vector<int> permution, vector<vector<int>>& expense)
@@ -34,6 +42,25 @@ public:
         cout << "[DEBUG] Tạo đường đi: ";
         for (int city : Permution) cout << city << " ";
         cout << "| Chi phí: " << cost << endl;
+
+        fitness = 1.0/cost;
+    }
+
+    // Copy constructor
+    Way(const Way& other)
+        : Permution(other.Permution), Expense(other.Expense), cost(other.cost), fitness(other.fitness) {}
+
+    // Copy assignment operator
+    Way& operator=(const Way& other) {
+        if (this == &other) return *this;
+        Permution = other.Permution;
+        cost = other.cost;
+        fitness = other.fitness;
+        return *this;
+    }
+
+    bool operator<(const Way& other) const {
+        return fitness < other.fitness;
     }
 };
 
@@ -43,8 +70,6 @@ void insert_Random_shuffle(vector<Way>& Member, int base, int P, vector<vector<i
     iota(vec.begin(), vec.end(), 0);
 
     set<vector<int>> S;
-    random_device rd;
-    mt19937 gen(rd());
 
     cout << "[DEBUG] insert_Random_shuffle bắt đầu, P = " << P << endl;
 
@@ -112,10 +137,11 @@ void insert_nearest_neighbor(vector<Way>& Member, int base, int P, vector<vector
 // Lớp Population (Quần thể)
 class Population {
 public:
-    int n;
-    int P;
+    int n; // kích thước cá thể
+    int P; // số lượng cá thể
     vector<Way> Member;
     vector<vector<int>>& Expense;
+    double sumfitness = 0;
 
     Population(int _n, vector<vector<int>>& expense)
         : n(_n), Expense(expense) {
@@ -130,8 +156,7 @@ public:
 
         cout << "[DEBUG] Số lượng cá thể P được tạo: " << P << endl;
 
-
-        int n_nearest_neighbor = min(P/2,n);
+        int n_nearest_neighbor = min(P / 2, n);
         int n_random_shuffle = P - n_nearest_neighbor;
 
         insert_nearest_neighbor(Member, n, n_nearest_neighbor, Expense);
@@ -139,6 +164,131 @@ public:
 
         insert_Random_shuffle(Member, n, n_random_shuffle, Expense);
         cout << "[DEBUG] Sau insert_Random_shuffle, Member.size() = " << Member.size() << endl;
+
+        for (Way x : Member) sumfitness += x.fitness;
+
+        sort(Member.begin(), Member.end());
+    }
+
+    Way RLselection() { // Roulette selection
+        double select = getRandomDouble(0, 1);
+        double fitness_search = select * sumfitness;
+
+        auto it = lower_bound(Member.begin(), Member.end(), fitness_search,
+            [](const Way& a, double val) { return a.fitness < val; });
+
+        return (it != Member.end()) ? *it : Member.back();
+    }
+
+    Way TNselection(int k = 3) { // tournament selection mặc định k = 3
+        Way best = Member[getRandomNumber(0, P - 1)]; // Chọn cá thể đầu tiên ngẫu nhiên
+
+        for (int i = 1; i < k; i++) {
+            Way candidate = Member[getRandomNumber(0, P - 1)];
+            if (candidate.fitness > best.fitness) {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    Way RankSelection() {
+        int N = Member.size();
+
+        // Tính tổng rank: S = N * (N + 1) / 2
+        int total_rank = N * (N + 1) / 2;
+
+        // Chọn một giá trị ngẫu nhiên trong khoảng [1, total_rank]
+        int random_value = getRandomNumber(1, total_rank);
+
+        int cumulative_rank = 0;
+
+        for (int i = 0; i < N; i++) { // Xét từ cá thể yếu nhất đến mạnh nhất
+            cumulative_rank += (i + 1); // Rank của cá thể i là (i + 1)
+            if (cumulative_rank >= random_value) {
+                return Member[i]; // Chọn cá thể phù hợp
+            }
+        }
+
+        return Member.back(); // Dự phòng, chọn cá thể mạnh nhất nếu có lỗi
+    }
+
+    Way RandomSelection() {
+        int idx = getRandomNumber(0, P - 1); // Chọn ngẫu nhiên một chỉ số trong quần thể
+        return Member[idx]; // Trả về cá thể được chọn
+    }
+
+    Way OXcrossover(Way& parent1, Way& parent2) {
+        vector<int> child(n, -1);
+
+        int start = getRandomNumber(0, n - 2);
+        int end = getRandomNumber(start + 1, n - 1);
+
+        unordered_set<int> used;
+        for (int i = start; i <= end; i++) {
+            child[i] = parent1.Permution[i];
+            used.insert(child[i]);
+        }
+
+        int j = 0;
+        for (int i = 0; i < n; i++) {
+            if (child[i] == -1) {
+                while (used.count(parent2.Permution[j])) j++;
+                child[i] = parent2.Permution[j++];
+            }
+        }
+        return Way(child, parent1.Expense);
+    }
+
+        void mutate(Way& way, double mutation_rate = 0.1) {
+        if (getRandomDouble(0, 1) < mutation_rate) {
+            int i = getRandomNumber(0, n - 1);
+            int j;
+            do {
+                j = getRandomNumber(0, n - 1);
+            } while (i == j); // Đảm bảo i và j không trùng nhau
+
+            swap(way.Permution[i], way.Permution[j]);
+        }
+    }
+
+    void evolveNextGeneration(string SelectionMethod) {
+        vector<Way> newGeneration;
+        while (newGeneration.size() < P) {
+            Way parent1 = RLselection();
+            Way parent2 = RLselection();
+            if (SelectionMethod == "TNselection") {
+                parent1 = TNselection();
+                parent2 = TNselection();
+            }
+            if (SelectionMethod == "Rankselection") {
+                parent1 = RankSelection();
+                parent2 = RankSelection();
+            }
+            if (SelectionMethod == "Randomselection") {
+                parent1 = RandomSelection();
+                parent2 = RandomSelection();
+            }
+
+            Way child1 = OXcrossover(parent1, parent2);
+            Way child2 = OXcrossover(parent2, parent1);
+
+            mutate(child1);
+            mutate(child2);
+
+            newGeneration.push_back(child1);
+            if (newGeneration.size() < P) newGeneration.push_back(child2);
+        }
+
+        Member = newGeneration;
+        sumfitness = 0;
+        for (Way x : Member) sumfitness += x.fitness;
+        sort(Member.begin(), Member.end());
+    }
+
+    Way getBestSolution() {
+        return Member.back();
     }
 };
 
@@ -158,13 +308,20 @@ int main() {
     };
 
     Population pop(10, expense);
-    cout << "[DEBUG] Số lượng cá thể trong quần thể: " << pop.Member.size() << endl;
+    int generations = 0, stagnation = 0, max_stagnation = 50; // sau 50 thế hệ không cải thiện thì dừng thuật toán
+    int best_cost = pop.getBestSolution().cost;
 
-    for (const auto& way : pop.Member) {
-        cout << "Đường đi: ";
-        for (int city : way.Permution) cout << city << " ";
-        cout << "| Chi phí: " << way.cost << endl;
+    while (stagnation < max_stagnation) {
+        pop.evolveNextGeneration("RLselection");
+        generations++;
+        if (pop.getBestSolution().cost < best_cost) {
+            best_cost = pop.getBestSolution().cost;
+            stagnation = 0;
+        } else {
+            stagnation++;
+        }
     }
 
+    cout << "Tìm thấy giải pháp tốt nhất sau " << generations << " thế hệ với chi phí: " << best_cost << endl;
     return 0;
 }
