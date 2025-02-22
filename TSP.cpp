@@ -59,6 +59,14 @@ public:
         return *this;
     }
 
+    void resetCost(){
+        for (size_t i = 1; i < Permution.size(); i++) {
+            cost += Expense[Permution[i - 1]][Permution[i]];
+        }
+        cost += Expense[Permution.back()][Permution.front()];
+        fitness = 1.0/cost;
+    }
+
     bool operator<(const Way& other) const {
         return fitness < other.fitness;
     }
@@ -241,7 +249,41 @@ public:
         return Way(child, parent1.Expense);
     }
 
-        void mutate(Way& way, double mutation_rate = 0.1) {
+    Way PMXcrossover(Way& parent1, Way& parent2) {
+        int n = parent1.Permution.size();
+        int start = getRandomNumber(0, n - 2);
+        int end = getRandomNumber(start + 1, n - 1);
+
+        vector<int> child(n, -1);
+        unordered_map<int, int> mapping;
+        unordered_set<int> used;
+
+
+        for (int i = start; i <= end; i++) {
+            child[i] = parent1.Permution[i];
+            mapping[parent1.Permution[i]] = parent2.Permution[i];
+            used.insert(parent1.Permution[i]);
+        }
+
+
+        for (int i = 0; i < n; i++) {
+            if (i >= start && i <= end) continue;
+
+            int val = parent2.Permution[i];
+            while (mapping.find(val) != mapping.end()) {
+                val = mapping[val];
+            }
+
+            if (used.find(val) == used.end()) {
+                child[i] = val;
+                used.insert(val);
+            }
+        }
+
+        return Way(child, parent1.Expense);
+    }
+
+        void mutate(Way& way, double mutation_rate = 0.4) {// đột biến với xác suất 0.4
         if (getRandomDouble(0, 1) < mutation_rate) {
             int i = getRandomNumber(0, n - 1);
             int j;
@@ -250,10 +292,32 @@ public:
             } while (i == j); // Đảm bảo i và j không trùng nhau
 
             swap(way.Permution[i], way.Permution[j]);
+
         }
     }
 
-    void evolveNextGeneration(string SelectionMethod) {
+    Way CXcrossover(Way& parent1, Way& parent2) {
+
+        vector<int> child(n, -1);
+        vector<bool> visited(n, false);
+
+        int index = 0;
+        while (!visited[index]) {
+            visited[index] = true;
+            child[index] = parent1.Permution[index];
+            index = find(parent1.Permution.begin(), parent1.Permution.end(), parent2.Permution[index]) - parent1.Permution.begin();
+        }
+
+        for (int i = 0; i < n; i++) {
+            if (!visited[i]) {
+                child[i] = parent2.Permution[i];
+            }
+        }
+
+        return Way(child, parent1.Expense);
+    }
+
+    void evolveNextGeneration(string SelectionMethod, string CrossoverMethod) {
         vector<Way> newGeneration;
         while (newGeneration.size() < P) {
             Way parent1 = RLselection();
@@ -273,6 +337,16 @@ public:
 
             Way child1 = OXcrossover(parent1, parent2);
             Way child2 = OXcrossover(parent2, parent1);
+
+            if(CrossoverMethod=="PMXcrossover"){
+                child1 = PMXcrossover(parent1,parent2);
+                child2 = PMXcrossover(parent2,parent1);
+            }
+
+            if(CrossoverMethod=="CXcrossover"){
+                child1 = CXcrossover(parent1,parent2);
+                child2 = CXcrossover(parent2,parent1);
+            }
 
             mutate(child1);
             mutate(child2);
@@ -312,7 +386,7 @@ int main() {
     int best_cost = pop.getBestSolution().cost;
 
     while (stagnation < max_stagnation) {
-        pop.evolveNextGeneration("RLselection");
+        pop.evolveNextGeneration("TNselection","PMXcrossover");
         generations++;
         if (pop.getBestSolution().cost < best_cost) {
             best_cost = pop.getBestSolution().cost;
