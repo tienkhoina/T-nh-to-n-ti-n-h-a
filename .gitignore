@@ -2,3 +2,5 @@ TSP.exe
 TSP.o
 TSP_backtracking.exe
 TSP_backtracking.o
+TSP_dp.exe
+TSP_dp.o
