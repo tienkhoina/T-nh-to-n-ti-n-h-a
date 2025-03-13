@@ -51,6 +51,43 @@ bool checkValid(vector<int> x, int v, vector<vector<double>> &Expensive, vector<
     return true;
 }
 
+bool checkValidvector(vector<int> x, vector<vector<double>> &Expensive, vector<pair<double, double>> &Timewindow, vector<double> &Weight, vector<double> &TimeServe, double Q)
+{
+    double b = 0; // thời gian bắt đầu hành trình
+    for (int i = 0; i < x.size() - 1; i++)
+    { // Sửa lỗi truy cập ngoài phạm vi
+        int from = x[i], to = x[i + 1];
+        
+        double travel_time = Expensive[from][to];
+        
+        if (i == 0)
+        {
+            // Xe đến điểm đầu tiên ít nhất là tại cửa sổ thời gian mở hoặc thời gian di chuyển
+            b = max(Timewindow[to].first, travel_time);
+
+        }
+        else
+        {
+            // Xe đến sớm -> phải đợi, nếu trễ thì đi thẳng luôn
+            b = max(b + travel_time, Timewindow[to].first);
+        }
+        // Kiểm tra nếu xe đến sau cửa sổ thời gian đóng thì tuyến không hợp lệ
+        
+        if (b > Timewindow[to].second)
+            return false;
+        b += TimeServe[to];
+    }
+    double w = 0;
+    for (int i = 1; i < x.size(); i++)
+    {
+        w += Weight[x[i]];
+    }
+    
+    if (w > Q)
+        return false;
+    return true;
+}
+
 // Hàm trích xuất danh sách các cung từ một lời giải VRPTW
 set<pair<int, int>> extractArcs(const vector<vector<int>> &solution)
 {
@@ -143,14 +180,14 @@ public:
                     b = max(b + travel_time, Timewindow[to].first);
                 }
                 // Cập nhật tổng thời gian di chuyển
-                f3 += travel_time;
+                f3 += travel_time +TimeServe[to];
                 b += TimeServe[to];
             }
         }
 
         for (vector<int> x : u)
         {
-            if (!checkValid(x, 0, Expensive, Timewindow, Weight, TimeServe, Q))
+            if (!checkValidvector(x, Expensive, Timewindow, Weight, TimeServe, Q))
             {
                 f1 = f2 = f3 = -1;
                 isValid = false;
@@ -659,7 +696,7 @@ public:
                             }
                         }
 
-                        if (checkValid(tempRoute, 0, Expensive, Timewindow, Weight, TimeServe, Q) && !isDuplicate)
+                        if (checkValidvector(tempRoute, Expensive, Timewindow, Weight, TimeServe, Q) && !isDuplicate)
                         {
                             u[index] = tempRoute;
                             mutated = true;
@@ -680,8 +717,8 @@ public:
                         vector<int> temp2 = u[index2];
                         temp2.erase(temp2.begin() + v);
 
-                        if (checkValid(temp1, 0, Expensive, Timewindow, Weight, TimeServe, Q) &&
-                            checkValid(temp2, 0, Expensive, Timewindow, Weight, TimeServe, Q) &&
+                        if (checkValidvector(temp1, Expensive, Timewindow, Weight, TimeServe, Q) &&
+                            checkValidvector(temp2, Expensive, Timewindow, Weight, TimeServe, Q) &&
                             temp1 != u[index1] && temp2 != u[index2])
                         {
                             u[index1] = temp1;
@@ -702,7 +739,7 @@ public:
                         mergedRoute.insert(mergedRoute.end(), u[index2].begin() + 1, u[index2].end() - 1);
                         mergedRoute.push_back(0);
 
-                        if (checkValid(mergedRoute, 0, Expensive, Timewindow, Weight, TimeServe, Q))
+                        if (checkValidvector(mergedRoute, Expensive, Timewindow, Weight, TimeServe, Q))
                         {
                             vector<vector<int>> newRoutes;
                             newRoutes.push_back(mergedRoute);
@@ -815,6 +852,7 @@ int main()
     freopen(path_in.c_str(), "r", stdin);
     int n, Q;
     cin >> n >> Q;
+    cout << n << " " << Q << endl;
     vector<vector<double>> Expensive(n + 1, vector<double>(n + 1));
     vector<double> Weight(n + 1);
     vector<double> TimeServe(n + 1);
@@ -832,7 +870,9 @@ int main()
     for (int i = 0; i <= n; i++)
         cin >> TimeServe[i];
 
-    Population population(20, n, Q, Expensive, Weight, TimeServe, Timewindow);
+    cout << checkValidvector({0,99,0}, Expensive, Timewindow, Weight, TimeServe, Q) << endl;
+
+    Population population(50, n, Q, Expensive, Weight, TimeServe, Timewindow);
 
     population.Genetic("NSGA_II",0.5, 500);
     cout << "Kết quả cuối cùng: \n";

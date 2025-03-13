@@ -30,36 +30,30 @@ DUE_DATE = data_dict['DUE DATE']
 SERVICE_TIME = data_dict['SERVICE TIME']
 
 with open(file_write_path, 'a', encoding='utf-8') as f:
-    f.write(str(len(CUST_NO)))
+    f.write(str(len(CUST_NO)-1))
     f.write('\n')
     f.write(str(max(DEMAND)))
     f.write('\n')
 
-    for i in range(len(CUST_NO)+1):
-        for j in range(len(CUST_NO)+1):
-            fr = (0,0) if i == 0 else (X[i-1],Y[i-1])
-            to = (0,0) if j == 0 else (X[j-1],Y[j-1])
+    for i in range(len(CUST_NO)):
+        for j in range(len(CUST_NO)):
+            fr =  (X[i],Y[i])
+            to =  (X[j],Y[j])
             distance = ((fr[0]-to[0])**2 + (fr[1]-to[1])**2)**0.5
             f.write(f'{distance} ')
         f.write('\n')
     
-    for i in range(len(CUST_NO)+1):
-        if i ==0:
-            f.write(f'0 {1e9}')
-        else:
-            f.write(f'{READY_TIME[i-1]} {DUE_DATE[i-1]}')
+    for i in range(len(CUST_NO)):
+        
+        f.write(f'{READY_TIME[i]} {DUE_DATE[i]}')
         f.write('\n')
-    for i in range(len(CUST_NO)+1):
-        if i ==0:
-            f.write(f'0 ')
-        else:
-            f.write(f'{DEMAND[i-1]} ')
+    for i in range(len(CUST_NO)):
+        
+        f.write(f'{DEMAND[i]} ')
     f.write('\n')
-    for i in range(len(CUST_NO)+1):
-        if i ==0:
-            f.write(f'0 ')
-        else:
-            f.write(f'{SERVICE_TIME[i-1]} ')
+    for i in range(len(CUST_NO)):
+       
+        f.write(f'{SERVICE_TIME[i]} ')
     f.write('\n')
 
 
